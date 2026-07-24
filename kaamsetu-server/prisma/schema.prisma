@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  WORKER
+  HOUSEHOLD
+}
+
+model User {
+  id              String   @id @default(uuid())
+  phone           String   @unique
+  role            Role?
+  name            String?
+  profilePhotoUrl String?
+  language        String   @default("hi")
+  
+  // PostGIS location would be added as raw SQL or unsupported type, 
+  // but for basic Prisma schema without PostGIS extension enabled yet:
+  latitude        Float?
+  longitude       Float?
+  locationRadius  Float?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  workerProfile    WorkerProfile?
+  householdProfile HouseholdProfile?
+  
+  householdJobs    Job[]          @relation("HouseholdJobs")
+  workerJobs       Job[]          @relation("WorkerJobs")
+  jobInterests     JobInterest[]
+  ratingsGiven     Rating[]       @relation("Rater")
+  ratingsReceived  Rating[]       @relation("Ratee")
+  notifications    Notification[]
+  fcmToken         String?
+}
+
+model WorkerProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  skills       String[]
+  expectedWage Float?
+  isAvailable  Boolean  @default(true)
+  
+  thumbsUp     Int      @default(0)
+  thumbsDown   Int      @default(0)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model HouseholdProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  addressLine  String?
+  
+  thumbsUp     Int      @default(0)
+  thumbsDown   Int      @default(0)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum JobStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RatingValue {
+  THUMBS_UP
+  THUMBS_DOWN
+}
+
+model Job {
+  id            String   @id @default(uuid())
+  householdId   String
+  household     User     @relation("HouseholdJobs", fields: [householdId], references: [id], onDelete: Cascade)
+  workerId      String?
+  worker        User?    @relation("WorkerJobs", fields: [workerId], references: [id], onDelete: SetNull)
+  
+  title         String
+  description   String?
+  category      String
+  date          DateTime
+  status        JobStatus @default(OPEN)
+  
+  budget        Float?
+  isNegotiable  Boolean  @default(false)
+  
+  latitude      Float
+  longitude     Float
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  interests     JobInterest[]
+  ratings       Rating[]
+}
+
+enum InterestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model JobInterest {
+  id            String   @id @default(uuid())
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workerId      String
+  worker        User     @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  
+  status        InterestStatus @default(PENDING)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([jobId, workerId])
+}
+
+model Rating {
+  id            String   @id @default(uuid())
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  raterId       String
+  rater         User     @relation("Rater", fields: [raterId], references: [id], onDelete: Cascade)
+  rateeId       String
+  ratee         User     @relation("Ratee", fields: [rateeId], references: [id], onDelete: Cascade)
+  
+  value         RatingValue
+  comment       String?  @db.VarChar(150)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([jobId, raterId])
+}
+
+model Notification {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title         String
+  body          String
+  data          Json?
+  isRead        Boolean  @default(false)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
